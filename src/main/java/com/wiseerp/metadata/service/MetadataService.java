@@ -90,6 +90,10 @@ public class MetadataService {
         return entityRepo.findByTenantId(tenantId);
     }
 
+    public List<EntityDefinition> listAllEntities() {
+        return entityRepo.findAll();
+    }
+
     public MetadataChangeLog logChange(MetadataChangeLog log) {
         if (log.getId() == null) log.setId(UUID.randomUUID());
         return changeLogRepo.save(log);
