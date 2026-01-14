@@ -50,18 +50,25 @@
             <version>42.6.0</version>
         </dependency>
 
-        <!-- JSONB support for Hibernate -->
+        <!-- JSONB support for Hibernate (Hibernate 6 compatible artifact) -->
         <dependency>
             <groupId>com.vladmihalcea</groupId>
-            <artifactId>hibernate-types-52</artifactId>
+            <artifactId>hibernate-types-60</artifactId>
             <version>2.21.1</version>
+        </dependency>
+        <!-- Ensure Hibernate core annotations are available -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>6.2.7.Final</version>
         </dependency>
 
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <optional>true</optional>
+            <version>1.18.26</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- OpenAPI -->
@@ -100,6 +107,13 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- In-memory database for tests -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <repositories>
@@ -126,6 +140,13 @@
                     <compilerArgs>
                         <arg>--enable-preview</arg>
                     </compilerArgs>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>1.18.26</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
         </plugins>
