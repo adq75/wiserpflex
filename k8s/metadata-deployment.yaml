@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wiserp-metadata
+  labels:
+    app: wiserp-metadata
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wiserp-metadata
+  template:
+    metadata:
+      labels:
+        app: wiserp-metadata
+    spec:
+      containers:
+        - name: wiserp-metadata
+          image: wiseerp/wiseerp-core:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://postgres:5432/wiseerp"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "postgres"
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: "postgres"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wiserp-metadata
+spec:
+  selector:
+    app: wiserp-metadata
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
