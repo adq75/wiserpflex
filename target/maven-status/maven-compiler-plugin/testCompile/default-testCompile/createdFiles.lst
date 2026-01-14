@@ -1,3 +1,11 @@
+com\wiseerp\metadata\service\MetadataAuditServiceTest.class
+com\wiseerp\metadata\service\MetadataServiceTest.class
 com\wiseerp\TestApplication.class
+com\wiseerp\metadata\controller\FieldDefinitionControllerIntegrationTest.class
+com\wiseerp\metadata\service\FieldDefinitionServiceTest.class
+com\wiseerp\metadata\service\EntityRegistryServiceTest.class
+com\wiseerp\TestDataSourceConfig.class
+com\wiseerp\TestRepositoryConfig.class
 com\wiseerp\health\TenantHealthIndicatorTest.class
+com\wiseerp\metadata\controller\MetadataControllerIntegrationTest.class
 com\wiseerp\metadata\controller\TenantAdminControllerTest.class

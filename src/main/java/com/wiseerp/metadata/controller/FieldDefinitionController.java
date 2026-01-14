@@ -2,7 +2,9 @@ package com.wiseerp.metadata.controller;
 
 import com.wiseerp.metadata.dto.FieldDefinitionDto;
 import com.wiseerp.metadata.model.FieldDefinition;
+import com.wiseerp.metadata.model.EntityDefinition;
 import com.wiseerp.metadata.service.MetadataService;
+import org.springframework.http.HttpStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -41,16 +43,24 @@ public class FieldDefinitionController {
             @Parameter(description = "Tenant ID") @PathVariable("tenantId") UUID tenantId,
             @Parameter(description = "Entity ID") @PathVariable("entityId") UUID entityId,
             @org.springframework.web.bind.annotation.RequestBody FieldDefinitionDto dto) {
+        var entityOpt = metadataService.getEntityDefinition(entityId);
+        if (entityOpt.isEmpty() || !tenantId.equals(entityOpt.get().getTenantId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
         FieldDefinition f = toEntity(dto);
         f.setEntityDefinitionId(entityId);
         FieldDefinition saved = metadataService.createFieldDefinition(f);
         return ResponseEntity.created(URI.create("/api/" + tenantId + "/metadata/entities/" + entityId + "/fields/" + saved.getId()))
-                .body(toDto(saved));
+            .body(toDto(saved));
     }
 
     @Operation(summary = "List fields for entity")
     @GetMapping
     public ResponseEntity<List<FieldDefinitionDto>> listFields(@PathVariable("tenantId") UUID tenantId, @PathVariable("entityId") UUID entityId) {
+        var entityOpt = metadataService.getEntityDefinition(entityId);
+        if (entityOpt.isEmpty() || !tenantId.equals(entityOpt.get().getTenantId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
         List<FieldDefinition> list = metadataService.listFieldsByEntity(entityId);
         List<FieldDefinitionDto> dtos = list.stream().map(this::toDto).collect(Collectors.toList());
         return ResponseEntity.ok(dtos);
@@ -59,16 +69,28 @@ public class FieldDefinitionController {
     @Operation(summary = "Get field by id")
     @GetMapping("/{id}")
     public ResponseEntity<FieldDefinitionDto> getField(@PathVariable("tenantId") UUID tenantId, @PathVariable("entityId") UUID entityId, @PathVariable("id") UUID id) {
+        var entityOpt = metadataService.getEntityDefinition(entityId);
+        if (entityOpt.isEmpty() || !tenantId.equals(entityOpt.get().getTenantId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
         return metadataService.listFieldsByEntity(entityId).stream()
-                .filter(f -> f.getId().equals(id))
-                .findFirst()
-                .map(f -> ResponseEntity.ok(toDto(f)))
-                .orElse(ResponseEntity.notFound().build());
+            .filter(f -> f.getId().equals(id))
+            .findFirst()
+            .map(f -> ResponseEntity.ok(toDto(f)))
+            .orElse(ResponseEntity.notFound().build());
     }
 
     @Operation(summary = "Update field")
     @PutMapping("/{id}")
     public ResponseEntity<FieldDefinitionDto> updateField(@PathVariable("tenantId") UUID tenantId, @PathVariable("entityId") UUID entityId, @PathVariable("id") UUID id, @RequestBody FieldDefinitionDto dto) {
+        var entityOpt = metadataService.getEntityDefinition(entityId);
+        if (entityOpt.isEmpty() || !tenantId.equals(entityOpt.get().getTenantId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        // ensure the field belongs to the entity
+        boolean belongs = metadataService.listFieldsByEntity(entityId).stream()
+                .anyMatch(f -> f.getId().equals(id));
+        if (!belongs) return ResponseEntity.notFound().build();
         FieldDefinition updated = toEntity(dto);
         FieldDefinition saved = metadataService.updateFieldDefinition(id, updated);
         return ResponseEntity.ok(toDto(saved));
@@ -77,6 +99,13 @@ public class FieldDefinitionController {
     @Operation(summary = "Delete field")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteField(@PathVariable("tenantId") UUID tenantId, @PathVariable("entityId") UUID entityId, @PathVariable("id") UUID id) {
+        var entityOpt = metadataService.getEntityDefinition(entityId);
+        if (entityOpt.isEmpty() || !tenantId.equals(entityOpt.get().getTenantId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        boolean belongs = metadataService.listFieldsByEntity(entityId).stream()
+                .anyMatch(f -> f.getId().equals(id));
+        if (!belongs) return ResponseEntity.notFound().build();
         metadataService.deleteFieldDefinition(id);
         return ResponseEntity.noContent().build();
     }

@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wiseerp
+  labels:
+    app: wiseerp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wiseerp
+  template:
+    metadata:
+      labels:
+        app: wiseerp
+    spec:
+      containers:
+        - name: wiseerp
+          image: wiseerp:latest
+          ports:
+            - containerPort: 8081
+          env:
+            - name: DB_URL
+              value: "jdbc:postgresql://postgres:5432/wiseerp"
+            - name: DB_USER
+              value: "wise"
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: wiseerp-secrets
+                  key: db-password
+            - name: KEYCLOAK_ISSUER
+              value: "http://keycloak:8080/realms/master"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 10

@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -52,6 +53,7 @@ public class MetadataController {
     @GetMapping("/entities/{id}")
     public ResponseEntity<EntityDefinitionDto> getEntity(@PathVariable("tenantId") UUID tenantId, @PathVariable("id") UUID id) {
         return metadataService.getEntityDefinition(id)
+                .filter(def -> tenantId.equals(def.getTenantId()))
                 .map(def -> ResponseEntity.ok(toDto(def)))
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -60,13 +62,22 @@ public class MetadataController {
     public ResponseEntity<EntityDefinitionDto> updateEntity(@PathVariable("tenantId") UUID tenantId,
                                                             @PathVariable("id") UUID id,
                                                             @RequestBody EntityDefinitionDto dto) {
+        Optional<EntityDefinition> existing = metadataService.getEntityDefinition(id);
+        if (existing.isEmpty() || !tenantId.equals(existing.get().getTenantId())) {
+            return ResponseEntity.notFound().build();
+        }
         EntityDefinition updated = toEntity(dto);
+        updated.setTenantId(existing.get().getTenantId());
         EntityDefinition saved = metadataService.updateEntityDefinition(id, updated);
         return ResponseEntity.ok(toDto(saved));
     }
 
     @DeleteMapping("/entities/{id}")
     public ResponseEntity<Void> deleteEntity(@PathVariable("tenantId") UUID tenantId, @PathVariable("id") UUID id) {
+        Optional<EntityDefinition> existing = metadataService.getEntityDefinition(id);
+        if (existing.isEmpty() || !tenantId.equals(existing.get().getTenantId())) {
+            return ResponseEntity.notFound().build();
+        }
         metadataService.deleteEntityDefinition(id);
         return ResponseEntity.noContent().build();
     }
