@@ -1,0 +1,3 @@
+com\wiseerp\TestApplication.class
+com\wiseerp\health\TenantHealthIndicatorTest.class
+com\wiseerp\metadata\controller\TenantAdminControllerTest.class

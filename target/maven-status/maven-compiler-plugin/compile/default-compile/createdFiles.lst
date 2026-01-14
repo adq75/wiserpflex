@@ -1,0 +1,16 @@
+com\wiseerp\metadata\dto\TenantResponse.class
+com\wiseerp\metadata\init\TenantStartupInitializer.class
+com\wiseerp\metadata\hooks\TenantSchemaCreator.class
+com\wiseerp\context\TenantContext.class
+com\wiseerp\health\TenantHealthIndicator.class
+com\wiseerp\filter\TenantIdentificationFilter.class
+com\wiseerp\config\MultiTenancyConfig$TenantRoutingDataSource.class
+com\wiseerp\metadata\model\TenantEntity$TenantEntityBuilder.class
+com\wiseerp\metadata\repository\TenantRepository.class
+com\wiseerp\metadata\model\TenantEntity.class
+com\wiseerp\metadata\service\TenantService.class
+com\wiseerp\datasource\TenantAwareDataSource.class
+com\wiseerp\config\SecurityConfig.class
+com\wiseerp\config\MultiTenancyConfig.class
+com\wiseerp\metadata\controller\TenantAdminController.class
+com\wiseerp\metadata\dto\TenantCreateRequest.class

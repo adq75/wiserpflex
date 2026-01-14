@@ -1,0 +1,64 @@
+# Application configuration template for local development
+# Update environment variables or override in production
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/wiseerp}
+    username: ${DB_USER:wise}
+    password: ${DB_PASS:wisepass}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:8080/realms/master}
+
+# application-specific
+wiseerp:
+  tenant:
+    schema-prefix: tenant_
+  startup:
+    db:
+      max-attempts: 10
+      delay-ms: 2000
+  health:
+    required-tables:
+      - audit_log
+
+server:
+  port: 8081
+
+logging:
+  level:
+    root: INFO
+    org.springframework: INFO
+    com.wiseerp: DEBUG
+
+# Notes:
+# - Set KEYCLOAK_ISSUER to your realm issuer (e.g. http://localhost:8080/realms/<realm-name>)
+# - For development the docker-compose provides defaults matching these variables.
+# - Production deployments should provide secrets via environment or vault and disable debug logging.
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+  health:
+    probes:
+      enabled: true
+    group:
+      readiness:
+        include: db,tenant
