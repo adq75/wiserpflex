@@ -4,6 +4,7 @@ import com.wiseerp.metadata.model.TenantEntity;
 import com.wiseerp.metadata.repository.TenantRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
@@ -20,12 +21,26 @@ public class TenantHealthIndicator implements HealthIndicator {
     private final TenantRepository tenantRepository;
     private final List<String> requiredTables;
 
+    @Autowired
     public TenantHealthIndicator(@Qualifier("defaultDataSource") DataSource defaultDataSource,
                                  TenantRepository tenantRepository,
-                                 @Value("${wiseerp.health.required-tables}") List<String> requiredTables) {
+                                 @Value("${wiseerp.health.required-tables:}") String requiredTablesRaw) {
         this.defaultDataSource = defaultDataSource;
         this.tenantRepository = tenantRepository;
-        this.requiredTables = requiredTables;
+        if (requiredTablesRaw == null || requiredTablesRaw.isBlank()) {
+            this.requiredTables = java.util.List.of();
+        } else {
+            this.requiredTables = java.util.Arrays.asList(requiredTablesRaw.split(","));
+        }
+    }
+
+    // Constructor overload used by unit tests to pass a List<String> directly
+    public TenantHealthIndicator(DataSource defaultDataSource,
+                                 TenantRepository tenantRepository,
+                                 List<String> requiredTables) {
+        this.defaultDataSource = defaultDataSource;
+        this.tenantRepository = tenantRepository;
+        this.requiredTables = (requiredTables == null) ? java.util.List.of() : requiredTables;
     }
 
     @Override

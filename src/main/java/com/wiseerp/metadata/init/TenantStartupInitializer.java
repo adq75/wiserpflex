@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Component
+@ConditionalOnProperty(name = "wiseerp.startup.enabled", havingValue = "true", matchIfMissing = true)
 public class TenantStartupInitializer implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(TenantStartupInitializer.class);
 
