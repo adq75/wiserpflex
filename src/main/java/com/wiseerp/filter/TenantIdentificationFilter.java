@@ -34,6 +34,10 @@ public class TenantIdentificationFilter extends HttpFilter {
 
     private String resolveTenant(HttpServletRequest request) {
         // Primary: Header
+        // The application expects the `X-Tenant-ID` header to identify tenant schema.
+        // Acceptable values:
+        //  - "tenant_{uuid}" (full schema name)
+        //  - raw UUID string (controller paths accept UUIDs and code prefixes with "tenant_")
         String tenant = request.getHeader(TENANT_HEADER);
         if (tenant != null && !tenant.isBlank()) return tenant.trim();
         // Fallback: path variable or query param

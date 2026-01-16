@@ -55,9 +55,11 @@ public class EntityDefinition {
     private Boolean isActive;
 
     @CreationTimestamp
+    @Column(name = "created_at")
     private Instant createdAt;
 
     @UpdateTimestamp
+    @Column(name = "updated_at")
     private Instant updatedAt;
 
     @Column(name = "deleted_at")

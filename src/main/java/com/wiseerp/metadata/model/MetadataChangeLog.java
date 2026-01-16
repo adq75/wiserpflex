@@ -44,5 +44,6 @@ public class MetadataChangeLog {
     private String changedBy;
 
     @CreationTimestamp
+    @Column(name = "created_at")
     private Instant createdAt;
 }

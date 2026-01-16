@@ -46,11 +46,12 @@ public class DynamicEntityGenerationIntegrationTest {
 
         DatabaseMetaData md = jdbcTemplate.getDataSource().getConnection().getMetaData();
         String schema = "tenant_" + tenantId.toString().replace('-', '_');
-        try (ResultSet rs = md.getTables(null, schema, "%", null)) {
+        try (ResultSet rs = md.getTables(null, null, "%", null)) {
             boolean found = false;
             while (rs.next()) {
                 String tbl = rs.getString("TABLE_NAME");
-                if (tbl != null && tbl.equalsIgnoreCase("integ_entity")) {
+                String tblSchema = rs.getString("TABLE_SCHEM");
+                if (tbl != null && tbl.equalsIgnoreCase("integ_entity") && tblSchema != null && tblSchema.equalsIgnoreCase(schema)) {
                     found = true;
                     break;
                 }

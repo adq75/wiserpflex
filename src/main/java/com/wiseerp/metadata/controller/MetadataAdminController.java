@@ -25,10 +25,13 @@ public class MetadataAdminController {
 
     private final MetadataService metadataService;
     private final MetadataAuditService auditService;
+    private final com.wiseerp.metadata.generator.DynamicEntityGenerator dynamicEntityGenerator;
 
-    public MetadataAdminController(MetadataService metadataService, MetadataAuditService auditService) {
+    public MetadataAdminController(MetadataService metadataService, MetadataAuditService auditService,
+                                   com.wiseerp.metadata.generator.DynamicEntityGenerator dynamicEntityGenerator) {
         this.metadataService = metadataService;
         this.auditService = auditService;
+        this.dynamicEntityGenerator = dynamicEntityGenerator;
     }
 
     @Operation(summary = "List entity definitions", description = "List all entity definitions or filter by tenantId")
@@ -58,6 +61,30 @@ public class MetadataAdminController {
         return ResponseEntity.created(URI.create("/api/system/metadata/changes/" + saved.getId())).body(toDto(saved));
     }
 
+    @Operation(summary = "Preview CREATE TABLE DDL", description = "Generate the DDL for an entity definition without applying it (dry-run)")
+    @ApiResponse(responseCode = "200", description = "DDL preview", content = @Content(mediaType = "text/plain"))
+    @PostMapping("/entities/preview")
+    public ResponseEntity<String> previewCreate(@RequestParam(value = "tenantId") UUID tenantId,
+                                                @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Entity definition", required = true) @RequestBody EntityDefinitionDto dto) {
+        com.wiseerp.metadata.model.EntityDefinition def = dtoToModel(dto);
+        String sql = dynamicEntityGenerator.buildCreateTableSql(tenantId, def);
+        return ResponseEntity.ok(sql);
+    }
+
+    @Operation(summary = "Apply entity definition", description = "Create the table for the given entity definition and register it in metadata")
+    @ApiResponse(responseCode = "201", description = "Entity created", content = @Content(mediaType = "application/json", schema = @Schema(implementation = EntityDefinitionDto.class)))
+    @PostMapping("/entities/apply")
+    public ResponseEntity<EntityDefinitionDto> applyCreate(@RequestParam(value = "tenantId") UUID tenantId,
+                                                           @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Entity definition", required = true) @RequestBody EntityDefinitionDto dto) {
+        com.wiseerp.metadata.model.EntityDefinition model = dtoToModel(dto);
+        if (model.getId() == null) model.setId(UUID.randomUUID());
+        model.setTenantId(tenantId);
+        com.wiseerp.metadata.model.EntityDefinition saved = metadataService.createEntityDefinition(model);
+        // perform DDL creation (non-dry run)
+        dynamicEntityGenerator.createTable(tenantId, saved, false);
+        return ResponseEntity.created(URI.create("/api/system/metadata/entities/" + saved.getId())).body(toDto(saved));
+    }
+
     private EntityDefinitionDto toDto(EntityDefinition e) {
         return EntityDefinitionDto.builder()
                 .id(e.getId())
@@ -70,6 +97,21 @@ public class MetadataAdminController {
                 .version(e.getVersion())
                 .isActive(e.getIsActive())
                 .build();
+    }
+
+    private EntityDefinition dtoToModel(EntityDefinitionDto d) {
+        EntityDefinition m = EntityDefinition.builder()
+                .id(d.getId())
+                .tenantId(d.getTenantId())
+                .name(d.getName())
+                .displayName(d.getDisplayName())
+                .category(d.getCategory())
+                .schemaDefinition(d.getSchemaDefinition())
+                .fields(d.getFields())
+                .version(d.getVersion())
+                .isActive(d.getIsActive())
+                .build();
+        return m;
     }
 
     private MetadataChangeLogDto toDto(MetadataChangeLog l) {

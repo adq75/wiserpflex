@@ -54,5 +54,6 @@ public class FieldDefinition {
     private Integer orderIndex;
 
     @CreationTimestamp
+    @Column(name = "created_at")
     private Instant createdAt;
 }

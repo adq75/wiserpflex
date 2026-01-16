@@ -26,6 +26,8 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                 // Allow unauthenticated liveness checks so Kubernetes can kill bad pods
                 .requestMatchers("/actuator/health/liveness").permitAll()
+            // Allow Prometheus to scrape metrics without auth (or configure a scrape user)
+            .requestMatchers("/actuator/prometheus").permitAll()
                 // Protect actuator endpoints and admin APIs
                 .requestMatchers("/actuator/**").hasRole("ADMIN")
                 .requestMatchers("/api/system/tenants/**").hasRole("ADMIN")

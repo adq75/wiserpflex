@@ -4,6 +4,8 @@ import com.wiseerp.context.TenantContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource;
 import org.springframework.orm.jpa.JpaTransactionManager;
@@ -39,7 +41,7 @@ public class MultiTenancyConfig {
     }
 
     @Bean
-    public DataSource routingDataSource(DataSource defaultDataSource) {
+    public DataSource routingDataSource(@Qualifier("defaultDataSource") DataSource defaultDataSource) {
         TenantRoutingDataSource routingDataSource = new TenantRoutingDataSource();
         Map<Object, Object> targetDataSources = new HashMap<>();
         // For a schema-per-tenant approach we can reuse the same physical DataSource.
@@ -65,7 +67,7 @@ public class MultiTenancyConfig {
     }
 
     @Bean
-    public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource routingDataSource) {
+    public LocalContainerEntityManagerFactoryBean entityManagerFactory(@Qualifier("routingDataSource") DataSource routingDataSource) {
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
         em.setDataSource(routingDataSource);
         em.setPackagesToScan("com.wiseerp");
@@ -86,7 +88,8 @@ public class MultiTenancyConfig {
     }
 
     @Bean
-    public DataSource dataSource(DataSource routingDataSource) {
+    @Primary
+    public DataSource dataSource(@Qualifier("routingDataSource") DataSource routingDataSource) {
         return new TenantAwareDataSource(routingDataSource);
     }
 }

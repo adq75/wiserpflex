@@ -103,4 +103,22 @@ public class MetadataService {
         if (v.getId() == null) v.setId(UUID.randomUUID());
         return versionRepo.save(v);
     }
+
+    /**
+     * Rollback to a previous version by recording a negative change and returning the applied version.
+     * This method is intentionally lightweight: higher-level migration steps should be provided
+     * by callers (e.g. a MigrationService running migration lambdas).
+     */
+    public MetadataVersion rollbackVersion(UUID versionId) {
+        MetadataVersion existing = versionRepo.findById(versionId)
+                .orElseThrow(() -> new IllegalArgumentException("Version not found: " + versionId));
+
+        // create a rollback record (new id) referencing the same entity and version
+        MetadataVersion rollback = MetadataVersion.builder()
+                .id(UUID.randomUUID())
+                .entityDefinitionId(existing.getEntityDefinitionId())
+                .version(existing.getVersion() + "-rollback")
+                .build();
+        return versionRepo.save(rollback);
+    }
 }
