@@ -1,0 +1,39 @@
+name: Integration Test (Postgres)
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main ]
+
+jobs:
+  it-postgres:
+    name: Run GeneratedEntityIndexPostgresIT
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Cache Maven repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-m2-
+
+      - name: Run single Postgres IT (Testcontainers)
+        env:
+          # Optional: override if you want to run against an external DB
+          IT_USE_EXTERNAL_DB: "false"
+        run: |
+          mvn -B -Dtest="com.wiseerp.metadata.integration.GeneratedEntityIndexPostgresIT" test
