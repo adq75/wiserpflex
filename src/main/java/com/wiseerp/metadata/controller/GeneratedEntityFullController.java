@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wiseerp.metadata.generator.ApiGeneratorService;
 import com.wiseerp.metadata.model.EntityDefinition;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +21,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.Locale;
+import java.util.regex.Pattern;
 import org.springframework.transaction.annotation.Transactional;
 
 @RestController
@@ -28,6 +33,16 @@ public class GeneratedEntityFullController {
     private final ApiGeneratorService apiGeneratorService;
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.wiseerp.audit.service.AuditService auditService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.wiseerp.events.DomainEventPublisher eventPublisher;
+
+    private static final Pattern VALID_IDENTIFIER = Pattern.compile("^[a-z][a-z0-9_]{1,99}$");
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.wiseerp.iam.service.AuthorizationService authorizationService;
 
     @PostMapping("/{entityName}")
     public ResponseEntity<?> create(@PathVariable("tenantId") UUID tenantId,
@@ -38,6 +53,13 @@ public class GeneratedEntityFullController {
         if (defOpt.isEmpty()) return ResponseEntity.notFound().build();
         EntityDefinition def = defOpt.get();
 
+        if (!authorize("write", def)) return ResponseEntity.status(403).body(Map.of("error", "forbidden"));
+
+        // Validate entity identifiers to match generator rules and avoid unsafe identifiers
+        if (!isValidIdentifier(entityName) || !isValidIdentifier(def.getName())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid entity name"));
+        }
+
         String schema = "tenant_" + tenantId.toString().replace('-', '_');
         String table = def.getName().toLowerCase();
 
@@ -45,6 +67,10 @@ public class GeneratedEntityFullController {
         UUID id = UUID.randomUUID();
 
         var fieldTypeMap = getFieldTypeMap(def);
+
+        // validate payload against EntityDefinition fields (if present)
+        ResponseEntity<?> maybe = validatePayload(payload, def, true);
+        if (maybe != null) return maybe;
 
         // build insert using payload keys that map to actual columns, converting types
         var insertCols = new java.util.ArrayList<String>();
@@ -78,7 +104,31 @@ public class GeneratedEntityFullController {
 
         jdbcTemplate.update(sql, insertParams.toArray());
 
+        // record audit and publish event (best-effort)
+        try {
+            com.wiseerp.audit.model.AuditLog entry = com.wiseerp.audit.model.AuditLog.builder()
+                .tenantId(tenantId)
+                .entityName(table)
+                .entityId(id)
+                .action("CREATE")
+                .payload(objectMapper.valueToTree(payload))
+                .actor(principalName())
+                .build();
+            if (auditService != null) auditService.log(entry);
+            if (eventPublisher != null) eventPublisher.publish(new com.wiseerp.events.DomainEvent(tenantId, table, id, "CREATE", objectMapper.valueToTree(payload), java.time.Instant.now()));
+        } catch (Exception ignored) {}
+
         return ResponseEntity.ok(Map.of("id", id));
+    }
+
+    private String principalName() {
+        try {
+            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null) return "system";
+            var p = auth.getPrincipal();
+            if (p instanceof String) return (String) p;
+            try { return p.toString(); } catch (Exception ex) { return "unknown"; }
+        } catch (Exception ex) { return "system"; }
     }
 
     @PostMapping("/{entityName}/bulk")
@@ -89,6 +139,12 @@ public class GeneratedEntityFullController {
         Optional<EntityDefinition> defOpt = apiGeneratorService.get(entityName);
         if (defOpt.isEmpty()) return ResponseEntity.notFound().build();
         EntityDefinition def = defOpt.get();
+
+        if (!authorize("write", def)) return ResponseEntity.status(403).body(Map.of("error", "forbidden"));
+
+        if (!isValidIdentifier(entityName) || !isValidIdentifier(def.getName())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid entity name"));
+        }
 
         String schema = "tenant_" + tenantId.toString().replace('-', '_');
         String table = def.getName().toLowerCase();
@@ -137,6 +193,12 @@ public class GeneratedEntityFullController {
         if (defOpt.isEmpty()) return ResponseEntity.notFound().build();
         EntityDefinition def = defOpt.get();
 
+        if (!authorize("read", def)) return ResponseEntity.status(403).body(Map.of("error", "forbidden"));
+
+        if (!isValidIdentifier(entityName) || !isValidIdentifier(def.getName())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid entity name"));
+        }
+
         String schema = "tenant_" + tenantId.toString().replace('-', '_');
         String table = def.getName().toLowerCase();
         String sql = String.format("SELECT * FROM %s.%s WHERE id = ? AND tenant_id = ?", schema, table);
@@ -166,9 +228,15 @@ public class GeneratedEntityFullController {
         if (defOpt.isEmpty()) return ResponseEntity.notFound().build();
         EntityDefinition def = defOpt.get();
 
+        if (!authorize("read", def)) return ResponseEntity.status(403).body(Map.of("error", "forbidden"));
+
+        if (!isValidIdentifier(entityName) || !isValidIdentifier(def.getName())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid entity name"));
+        }
+
         // Prefer using ApiGeneratorService dynamic query path when available.
         try {
-            var rows = apiGeneratorService.listAll(def);
+                var rows = apiGeneratorService.listAll(tenantId, def);
             return ResponseEntity.ok(Map.of("page", page, "size", size, "items", rows));
         } catch (Exception ex) {
             // Fallback to direct JDBC paging for backwards compatibility
@@ -206,6 +274,12 @@ public class GeneratedEntityFullController {
         if (defOpt.isEmpty()) return ResponseEntity.notFound().build();
         EntityDefinition def = defOpt.get();
 
+        if (!authorize("write", def)) return ResponseEntity.status(403).body(Map.of("error", "forbidden"));
+
+        if (!isValidIdentifier(entityName) || !isValidIdentifier(def.getName())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid entity name"));
+        }
+
         String schema = "tenant_" + tenantId.toString().replace('-', '_');
         String table = def.getName().toLowerCase();
         // determine columns present in table
@@ -213,6 +287,8 @@ public class GeneratedEntityFullController {
         var updates = new java.util.ArrayList<String>();
         var params = new java.util.ArrayList<Object>();
         var fieldTypeMap = getFieldTypeMap(def);
+        ResponseEntity<?> maybe = validatePayload(payload, def, false);
+        if (maybe != null) return maybe;
         for (var e : payload.entrySet()) {
             String k = e.getKey();
             if (cols.contains(k) && !k.equalsIgnoreCase("id") && !k.equalsIgnoreCase("tenant_id")) {
@@ -227,7 +303,48 @@ public class GeneratedEntityFullController {
         params.add(id);
         params.add(tenantId);
         jdbcTemplate.update(sql, params.toArray());
+        try {
+            com.wiseerp.audit.model.AuditLog entry = com.wiseerp.audit.model.AuditLog.builder()
+                .tenantId(tenantId)
+                .entityName(table)
+                .entityId(id)
+                .action("UPDATE")
+                .payload(objectMapper.valueToTree(payload))
+                .actor(principalName())
+                .build();
+            if (auditService != null) auditService.log(entry);
+            if (eventPublisher != null) eventPublisher.publish(new com.wiseerp.events.DomainEvent(tenantId, table, id, "UPDATE", objectMapper.valueToTree(payload), java.time.Instant.now()));
+        } catch (Exception ignored) {}
+
         return ResponseEntity.ok().build();
+    }
+
+    private ResponseEntity<?> validatePayload(Map<String, Object> payload, EntityDefinition def, boolean isCreate) {
+        if (payload == null || def == null) return null;
+        try {
+            var fields = def.getFields();
+            if (fields == null || !fields.isArray()) return null;
+            for (var it = fields.elements(); it.hasNext(); ) {
+                var f = it.next();
+                String name = f.path("name").asText(null);
+                boolean required = f.path("required").asBoolean(false);
+                int maxLength = f.path("maxLength").asInt(-1);
+                if (name == null) continue;
+                Object v = payload.get(name);
+                if (required && (v == null || (v instanceof String && ((String) v).isBlank()))) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Field '" + name + "' is required"));
+                }
+                if (maxLength > 0 && v instanceof String) {
+                    if (((String) v).length() > maxLength) {
+                        return ResponseEntity.badRequest().body(Map.of("error", "Field '" + name + "' exceeds maxLength " + maxLength));
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            // if validation fails unexpectedly, don't block operation; log and continue
+            // but when running in tests without logger available, swallow silently
+        }
+        return null;
     }
 
     @DeleteMapping("/{entityName}/{id}")
@@ -238,11 +355,24 @@ public class GeneratedEntityFullController {
         if (defOpt.isEmpty()) return ResponseEntity.notFound().build();
         EntityDefinition def = defOpt.get();
 
+        if (!authorize("delete", def)) return ResponseEntity.status(403).body(Map.of("error", "forbidden"));
+
         String schema = "tenant_" + tenantId.toString().replace('-', '_');
         String table = def.getName().toLowerCase();
         String sql = String.format("DELETE FROM %s.%s WHERE id = ? AND tenant_id = ?", schema, table);
         int deleted = jdbcTemplate.update(sql, id, tenantId);
         if (deleted == 0) return ResponseEntity.notFound().build();
+        try {
+            com.wiseerp.audit.model.AuditLog entry = com.wiseerp.audit.model.AuditLog.builder()
+                .tenantId(tenantId)
+                .entityName(table)
+                .entityId(id)
+                .action("DELETE")
+                .actor(principalName())
+                .build();
+            if (auditService != null) auditService.log(entry);
+            if (eventPublisher != null) eventPublisher.publish(new com.wiseerp.events.DomainEvent(tenantId, table, id, "DELETE", null, java.time.Instant.now()));
+        } catch (Exception ignored) {}
         return ResponseEntity.noContent().build();
     }
 
@@ -271,6 +401,12 @@ public class GeneratedEntityFullController {
             }
         } catch (Exception ignored) {}
         return m;
+    }
+
+    private boolean isValidIdentifier(String raw) {
+        if (raw == null) return false;
+        String s = raw.toLowerCase(Locale.ROOT);
+        return VALID_IDENTIFIER.matcher(s).matches();
     }
 
     private Object convertValue(Object raw, String dataType) {
@@ -304,5 +440,32 @@ public class GeneratedEntityFullController {
         } catch (Exception ex) {
             throw new IllegalArgumentException("Failed to convert value to " + dt + ": " + ex.getMessage(), ex);
         }
+    }
+
+    private boolean authorize(String action, EntityDefinition def) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated()) return false;
+            // Admin role always allowed
+            if (auth.getAuthorities().stream().map(GrantedAuthority::getAuthority).anyMatch(a -> a.equals("ROLE_ADMIN"))) return true;
+            // Per-entity role: ROLE_{ENTITY}_{ACTION}
+            String ent = def != null && def.getName() != null ? def.getName().toUpperCase(Locale.ROOT) : "";
+            String expected = "ROLE_" + ent + "_" + action.toUpperCase(Locale.ROOT);
+            if (auth.getAuthorities().stream().map(GrantedAuthority::getAuthority).anyMatch(a -> a.equals(expected))) return true;
+
+            // Delegate to AuthorizationService when available. Pass principal when it's a domain User,
+            // otherwise the service implementation can inspect JWT claims itself (JwtAuthorizationService does).
+            if (authorizationService != null) {
+                com.wiseerp.iam.entity.User user = null;
+                if (auth.getPrincipal() instanceof com.wiseerp.iam.entity.User) {
+                    user = (com.wiseerp.iam.entity.User) auth.getPrincipal();
+                }
+                // Check per-entity/action role via service
+                if (authorizationService.userHasRole(user, expected)) return true;
+                // Check generic action-based role (e.g., ROLE_WRITE)
+                if (authorizationService.userHasRole(user, action.toUpperCase(Locale.ROOT))) return true;
+            }
+        } catch (Exception ignored) {}
+        return false;
     }
 }
