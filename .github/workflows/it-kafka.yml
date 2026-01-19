@@ -1,0 +1,57 @@
+name: Integration Test (Kafka)
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  it-kafka:
+    name: Run Kafka IT (Testcontainers)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    services:
+      docker:
+        image: docker:20.10.16-dind
+        options: --privileged --entrypoint=/usr/local/bin/dockerd-entrypoint.sh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Wait for Docker daemon
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          # Wait for dockerd to be available
+          for i in {1..30}; do
+            if docker info > /dev/null 2>&1; then
+              echo "docker is ready" && break
+            fi
+            sleep 1
+          done
+
+      - name: Cache Maven repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-m2-
+
+      - name: Run Kafka IT
+        env:
+          # ensure Testcontainers uses docker host
+          DOCKER_HOST: unix:///var/run/docker.sock
+        run: |
+          mvn -B -DskipTests=false -Dtest=com.wiseerp.metadata.integration.GeneratedEntityKafkaEventIT test
